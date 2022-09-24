@@ -9,6 +9,8 @@ type Token =
 and Symbol =
     | Sharp
     | Dot
+    | Plus
+    | Minus
 
 let Lex (text: string) =
     let rec find (text: string) index length cnd =
@@ -33,10 +35,15 @@ let Lex (text: string) =
                 f text (index + 1) length (Symbol Sharp :: result)
             | '.' ->
                 f text (index + 1) length (Symbol Dot :: result)
+            | '+' ->
+                f text (index + 1) length (Symbol Plus :: result)
+            | '-' ->
+                f text (index + 1) length (Symbol Minus :: result)
             | _ ->
                 result
                 
     f text 0 text.Length []
+    |> List.rev
     
 let (|Unsigned_Int|_|)= function
     | Number num :: xs -> Some(num, xs)
@@ -44,6 +51,8 @@ let (|Unsigned_Int|_|)= function
 
 let (|Signed_Int|_|)= function
    | Unsigned_Int(num, xs) -> Some(num, xs)
+   | Symbol Plus :: Unsigned_Int(num, xs) -> Some(num, xs)
+   | Symbol Minus:: Unsigned_Int(num, xs) -> Some("-" + num, xs)
    | _ -> None
 
 let(|Int_Literal|_|) = function
