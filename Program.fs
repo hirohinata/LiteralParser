@@ -37,14 +37,32 @@ let Lex (text: string) =
                 result
                 
     f text 0 text.Length []
+    
+let (|Unsigned_Int|_|)= function
+    | Number num :: xs -> Some(num, xs)
+    | _ -> None
 
-let Parse text =
-    Lex text
+let (|Signed_Int|_|)= function
+   | Unsigned_Int(num, xs) -> Some(num, xs)
+   | _ -> None
+
+let(|Int_Literal|_|) = function
+    | Signed_Int(num, xs) -> Some(num, xs)
+    | _ -> None
+
+let (|Numeric_Literal|_|) = function
+    | Int_Literal(num, xs) -> Some(num, xs)
+    | _ -> None
+
+let Parse = function
+    | Numeric_Literal(num, []) -> $"Numeric {num}"
+    | tokens -> $"Parse Error : {tokens}"
 
 [<EntryPoint>]
 let main argv =
     while true do
         stdin.ReadLine()
+        |> Lex 
         |> Parse
         |> stdout.WriteLine
 
