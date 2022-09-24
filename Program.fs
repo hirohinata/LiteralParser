@@ -2,8 +2,44 @@
 
 open System
 
+type Token =
+    | Identifier of str: string
+    | Symbol of sym: Symbol
+    | Number of num: string
+and Symbol =
+    | Sharp
+    | Dot
+
+let Lex (text: string) =
+    let rec find (text: string) index length cnd =
+        if length <= index then
+            index
+        elif cnd text.[index] then
+            find text (index + 1) length cnd
+        else
+            index
+    let rec f (text: string) index length result =
+        if length <= index then
+            result
+        else
+            match text.[index] with
+            | c when 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' ->
+                let next = find text index length (fun c -> 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z')
+                f text next length (Identifier (text.Substring(index, next - index)) :: result)
+            | c when '0' <= c && c <= '9' ->
+                let next = find text index length (fun c -> '0' <= c && c <= '9')
+                f text next length (Number (text.Substring(index, next - index)) :: result)
+            | '#' ->
+                f text (index + 1) length (Symbol Sharp :: result)
+            | '.' ->
+                f text (index + 1) length (Symbol Dot :: result)
+            | _ ->
+                result
+                
+    f text 0 text.Length []
+
 let Parse text =
-    text + "!"
+    Lex text
 
 [<EntryPoint>]
 let main argv =
