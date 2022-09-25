@@ -233,7 +233,20 @@ let (|Bool_Literal|_|) = function
     | (True_Literal s | False_Literal s) -> Some(None, s)
     | _ -> None
 
+let (|Char_Str|_|) (text: string, index, length) =
+    if index < length && (text.[index] = '\'' || text.[index] = '"') then
+        Some (text.Substring(index))
+    else
+        None
+
+let (|Char_Literal|_|) = function
+    | Identifier(typeName, Symbol(Sharp, _, Char_Str s)) -> Some(Some typeName, s)
+    | Char_Str s -> Some(None, s)
+    | _ -> None
+
 let Parse text index length =
+    let unwrap = Option.map (fun s -> s + "#") >> Option.defaultValue ""
+
     match text, index, length with
     | Time_Literal(typeName, num, (remainText, index, length)) ->
         if index = length then
@@ -242,14 +255,17 @@ let Parse text index length =
             $"Time Literal Parse Error ( {text} ) : {remainText.Substring(index)} is remained. (index = {index}, length = {length})"
     | Numeric_Literal(typeName, baseNum, num, (remainText, index, length)) ->
         if index = length then
-            let typeName = typeName |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
-            let baseNum = baseNum |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
+            let typeName = unwrap typeName
+            let baseNum = unwrap baseNum
             $"Numeric {typeName}{baseNum}{num}"
         else
             $"Numeric Literal Parse Error ( {text} ) : {remainText.Substring(index)} is remained. (index = {index}, length = {length})"
     | Bool_Literal(typeName, str) ->
-        let typeName = typeName |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
+        let typeName = unwrap typeName
         $"Bool {typeName}{str}"
+    | Char_Literal(typeName, str) ->
+        let typeName = unwrap typeName
+        $"Char {typeName}{str}"
     | _ -> $"Parse Error ( {text} ) : not match."
 
 
