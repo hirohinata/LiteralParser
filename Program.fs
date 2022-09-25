@@ -3,10 +3,10 @@
 open System
 
 type Token =
-    | Identifier of str: string
-    | Symbol of sym: Symbol
-    | HexNumber of num: string
-    | Number of num: string
+    | Letter of char
+    | Symbol of Symbol * char
+    | HexNumber of char
+    | Number of char
 and Symbol =
     | Sharp
     | Dot
@@ -20,63 +20,58 @@ let Lex (text: string) =
             result
         else
             match text.[index] with
-            | c when 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' ->
-                let rec find (text: string) index length isHexNum =
-                    if length <= index then
-                        index, isHexNum
-                    else
-                        match text.[index] with
-                        | c when '0' <= c && c <= '9' || 'A' <= c && c <= 'F' || 'a' <= c && c <= 'f' || c = '_' ->
-                            find text (index + 1) length isHexNum
-                        | c when 'G' <= c && c <= 'Z' || 'g' <= c && c <= 'z' ->
-                            find text (index + 1) length false
-                        | _ -> index, isHexNum
-                match find text index length true with
-                | next, false -> f text next length (Identifier (text.Substring(index, next - index)) :: result)
-                | next, true -> f text next length (HexNumber (text.Substring(index, next - index)) :: result)
+            | c when 'A' <= c && c <= 'F' || 'a' <= c && c <= 'f' ->
+                f text (index + 1) length (HexNumber c :: result)
+            | c when 'G' <= c && c <= 'Z' || 'g' <= c && c <= 'z' ->
+                f text (index + 1) length (Letter c :: result)
             | c when '0' <= c && c <= '9' ->
-                let rec find (text: string) index length isHexNum =
-                    if length <= index then
-                        index, isHexNum
-                    else
-                        match text.[index] with
-                        | c when '0' <= c && c <= '9' || c = '_' ->
-                            find text (index + 1) length isHexNum
-                        | c when 'A' <= c && c <= 'F' || 'a' <= c && c <= 'f' ->
-                            find text (index + 1) length true
-                        | _ -> index, isHexNum
-                match find text index length false with
-                | next, false -> f text next length (Number (text.Substring(index, next - index)) :: result)
-                | next, true -> f text next length (HexNumber (text.Substring(index, next - index)) :: result)
-            | '#' ->
-                f text (index + 1) length (Symbol Sharp :: result)
-            | '.' ->
-                f text (index + 1) length (Symbol Dot :: result)
-            | '+' ->
-                f text (index + 1) length (Symbol Plus :: result)
-            | '-' ->
-                f text (index + 1) length (Symbol Minus :: result)
-            | '_' ->
-                f text (index + 1) length (Symbol Underscore :: result)
+                f text (index + 1) length (Number c :: result)
+            | '#' as c ->
+                f text (index + 1) length (Symbol(Sharp, c) :: result)
+            | '.' as c ->
+                f text (index + 1) length (Symbol(Dot, c) :: result)
+            | '+' as c ->
+                f text (index + 1) length (Symbol(Plus, c) :: result)
+            | '-' as c ->
+                f text (index + 1) length (Symbol(Minus, c) :: result)
+            | '_' as c ->
+                f text (index + 1) length (Symbol(Underscore, c) :: result)
             | _ ->
                 result
                 
     f text 0 text.Length []
     |> List.rev
-    
-let (|Unsigned_Int|_|) = function
-    | Number num :: xs -> Some(num, xs)
+
+let rec (|Unsigned_Int|_|) = function
+    | Number num1 :: Symbol(Underscore, _) :: Unsigned_Int(num2, xs) -> Some($"{num1}{num2}", xs)
+    | Number num1 :: Unsigned_Int(num2, xs) -> Some($"{num1}{num2}", xs)
+    | Number num :: xs -> Some($"{num}", xs)
+    | _ -> None
+
+let rec (|Hex_Int|_|) = function
+    | (Number num1 | HexNumber num1) :: Symbol(Underscore, _) :: Hex_Int(num2, xs) -> Some($"{num1}{num2}", xs)
+    | (Number num1 | HexNumber num1) :: Hex_Int(num2, xs) -> Some($"{num1}{num2}", xs)
+    | (Number num  | HexNumber num) :: xs -> Some($"{num}", xs)
+    | _ -> None
+
+let rec (|Identifier_Continuous|_|) = function
+    | (Letter c | HexNumber c | Number c | Symbol(Underscore, c)) :: Identifier_Continuous(s, xs) -> Some($"{c}{s}", xs)
+    | (Letter c | HexNumber c | Number c | Symbol(Underscore, c)) :: xs -> Some($"{c}", xs)
+    | _ -> None
+let (|Identifier|_|) = function
+    | (Letter c | HexNumber c | Symbol(Underscore, c)) :: Identifier_Continuous(s, xs) -> Some($"{c}{s}", xs)
+    | (Letter c | HexNumber c | Symbol(Underscore, c)) :: xs -> Some($"{c}", xs)
     | _ -> None
 
 let (|Signed_Int|_|) = function
    | Unsigned_Int(num, xs) -> Some(num, xs)
-   | Symbol Plus :: Unsigned_Int(num, xs) -> Some(num, xs)
-   | Symbol Minus:: Unsigned_Int(num, xs) -> Some("-" + num, xs)
+   | Symbol(Plus, _) :: Unsigned_Int(num, xs) -> Some(num, xs)
+   | Symbol(Minus, c) :: Unsigned_Int(num, xs) -> Some($"{c}{num}", xs)
    | _ -> None
 
 let (|Base_Number_Specified_Int|_|) = function
-    | Number baseNum :: Symbol Sharp :: Unsigned_Int(num, xs) -> Some(baseNum, num, xs)
-    | Number baseNum :: Symbol Sharp :: HexNumber num :: xs -> Some(baseNum, num, xs)
+    | Unsigned_Int(baseNum, Symbol(Sharp, _) :: Unsigned_Int(num, xs)) -> Some(baseNum, num, xs)
+    | Unsigned_Int(baseNum, Symbol(Sharp, _) :: Hex_Int(num, xs)) -> Some(baseNum, num, xs)
     | _ -> None
     
 let(|Int_Literal_Core|_|) = function
@@ -85,43 +80,42 @@ let(|Int_Literal_Core|_|) = function
     | _ -> None
 
 let(|Int_Literal|_|) = function
-    | Identifier typeName :: Symbol Sharp :: Int_Literal_Core(baseNum, num, xs) -> Some(Some typeName, baseNum, num, xs)
+    | Identifier(typeName, Symbol(Sharp, _) :: Int_Literal_Core(baseNum, num, xs)) -> Some(Some typeName, baseNum, num, xs)
     | Int_Literal_Core(baseNum, num, xs) -> Some(None, baseNum, num, xs)
     | _ -> None
     
 let (|Real_Literal_Core|_|) = function
-    | Signed_Int(integral, Symbol Dot :: Unsigned_Int(fractional, xs)) ->
-        Some(integral + "." + fractional, xs)
-    | Signed_Int(integral, Symbol Dot :: HexNumber fractionalWithExponent :: Signed_Int(num, xs)) ->
-        Some(integral + "." + fractionalWithExponent + num, xs)
-    | Signed_Int(integral, Symbol Dot :: HexNumber fractionalWithExponent :: xs) ->
-        Some(integral + "." + fractionalWithExponent, xs)
+    | Signed_Int(integral, Symbol(Dot, c) :: Unsigned_Int(fractional, HexNumber e :: Signed_Int(num, xs))) when e = 'e' || e = 'E' ->
+        Some($"{integral}{c}{fractional}E{num}", xs)
+    | Signed_Int(integral, Symbol(Dot, c) :: Unsigned_Int(fractional, xs)) ->
+        Some($"{integral}{c}{fractional}", xs)
     | _ -> None
 
 let (|Real_Literal|_|) = function
-    | Identifier typeName :: Symbol Sharp :: Real_Literal_Core(num, xs) -> Some(Some typeName, None, num, xs)
-    | Real_Literal_Core(num, xs) -> Some(None, None, num, xs)
+    | Identifier(typeName, Symbol(Sharp, _) :: Real_Literal_Core(num, xs)) -> Some(Some typeName, num, xs)
+    | Real_Literal_Core(num, xs) -> Some(None, num, xs)
     | _ -> None
 
 let (|Numeric_Literal|_|) = function
-    | Real_Literal(typeName, baseNum, num, xs) -> Some(typeName, baseNum, num, xs)
+    | Real_Literal(typeName, num, xs) -> Some(typeName, None, num, xs)
     | Int_Literal(typeName, baseNum, num, xs) -> Some(typeName, baseNum, num, xs)
     | _ -> None
 
 let (|Fix_Point|_|) = function
-    | Unsigned_Int(integral, Symbol Dot :: Unsigned_Int(fractional, xs)) -> Some(integral + "." + fractional, xs)
+    | Unsigned_Int(integral, Symbol(Dot, c) :: Unsigned_Int(fractional, xs)) -> Some($"{integral}{c}{fractional}", xs)
     | Unsigned_Int(num, xs) -> Some(num, xs)
     | _ -> None
 
 let (|Nanoseconds|_|) = function
-    | Fix_Point(num, Identifier unit :: xs) when unit = "ns" -> Some(num + "ns", xs)
+    | Fix_Point(num, Letter n :: Letter s :: xs) when (n = 'n' || n = 'N') && (s = 's' || s = 'S') ->
+        Some($"{num}ns", xs)
     | _ -> None
 
 let (|Microseconds|_|) = function
-    | Fix_Point(num, Identifier unit :: xs) when unit = "us" ->
-        Some(num + "us", xs)
-    | Unsigned_Int(us, Identifier unit :: Symbol Underscore :: Nanoseconds(ns, xs)) when unit = "us" ->
-        Some(us + "us" + ns + "ns", xs)
+    | Fix_Point(num, Letter u :: Letter s :: xs) when (u = 'u' || u = 'U') && (s = 's' || s = 'S') ->
+        Some($"{num}us", xs)
+    | Unsigned_Int(us, Letter u :: Letter s :: Symbol(Underscore, _) :: Nanoseconds(ns, xs)) when (u = 'u' || u = 'U') && (s = 's' || s = 'S') ->
+        Some($"{us}us {ns}ns", xs)
     | _ -> None
 
 let (|Interval|_|) = function
@@ -130,9 +124,9 @@ let (|Interval|_|) = function
     | _ -> None
 
 let (|Duration|_|) = function
-    | Identifier typeName :: Symbol Sharp :: Interval(num, xs) -> Some(typeName, num, xs)
-    | Identifier typeName :: Symbol Sharp :: Symbol Plus :: Interval(num, xs) -> Some(typeName, num, xs)
-    | Identifier typeName :: Symbol Sharp :: Symbol Minus :: Interval(num, xs) -> Some(typeName, "-" + num, xs)
+    | Identifier(typeName, Symbol(Sharp, _) :: Symbol(Plus, _) :: Interval(num, xs)) -> Some(typeName, num, xs)
+    | Identifier(typeName, Symbol(Sharp, _) :: Symbol(Minus, c) :: Interval(num, xs)) -> Some(typeName, $"{c}{num}", xs)
+    | Identifier(typeName, Symbol(Sharp, _) :: Interval(num, xs)) -> Some(typeName, num, xs)
     | _ -> None
 
 let (|Time_Literal|_|) = function
