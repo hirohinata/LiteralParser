@@ -77,16 +77,21 @@ let (|Base_Number_Specified_Int|_|) = function
     | _ -> None
 
 let(|Int_Literal|_|) = function
-    | Base_Number_Specified_Int(baseNum, num, xs) -> Some(baseNum, num, xs)
-    | Signed_Int(num, xs) -> Some("10", num, xs)
+    | Identifier typeName :: Symbol Sharp :: Base_Number_Specified_Int(baseNum, num, xs) -> Some(Some typeName, Some baseNum, num, xs)
+    | Identifier typeName :: Symbol Sharp :: Signed_Int(num, xs) -> Some(Some typeName, None, num, xs)
+    | Base_Number_Specified_Int(baseNum, num, xs) -> Some(None, Some baseNum, num, xs)
+    | Signed_Int(num, xs) -> Some(None, None, num, xs)
     | _ -> None
 
 let (|Numeric_Literal|_|) = function
-    | Int_Literal(baseNum, num, xs) -> Some(baseNum, num, xs)
+    | Int_Literal(typeName, baseNum, num, xs) -> Some(typeName, baseNum, num, xs)
     | _ -> None
 
 let Parse = function
-    | Int_Literal(baseNum, num, []) -> $"Numeric {baseNum}#{num}"
+    | Int_Literal(typeName, baseNum, num, []) ->
+        let typeName = typeName |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
+        let baseNum = baseNum |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
+        $"Numeric {typeName}{baseNum}{num}"
     | tokens -> $"Parse Error : {tokens}"
 
 [<EntryPoint>]
