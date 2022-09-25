@@ -8,6 +8,7 @@ type Symbol =
     | Plus
     | Minus
     | Underscore
+    | Colon
 
 let (|Letter|Symbol|HexNumber|Number|Unexpected|) (text: string, index, length) =
     if length <= index then
@@ -30,6 +31,8 @@ let (|Letter|Symbol|HexNumber|Number|Unexpected|) (text: string, index, length) 
             Symbol(Minus, c, (text, (index + 1), length))
         | '_' as c ->
             Symbol(Underscore, c, (text, (index + 1), length))
+        | ':' as c ->
+            Symbol(Colon, c, (text, (index + 1), length))
         | _ ->
             Unexpected
 
@@ -190,8 +193,17 @@ let (|Duration|_|) = function
     | Identifier(typeName, Symbol(Sharp, _, Interval(num, xs))) -> Some(typeName, num, xs)
     | _ -> None
 
+let (|Daytime|_|) = function
+    | Unsigned_Int(hour, Symbol(Colon, _, Unsigned_Int(min, Symbol(Colon, _, Fix_Point(sec, xs))))) -> Some($"{hour}:{min}:{sec}", xs)
+    | _ -> None
+
+let (|Time_Of_Day|_|) = function
+    | Identifier(typeName, Symbol(Sharp, _, Daytime(num, xs))) -> Some(typeName, num, xs)
+    | _ -> None
+
 let (|Time_Literal|_|) = function
     | Duration(typeName, num, xs) -> Some(typeName, num, xs)
+    | Time_Of_Day(typeName, num, xs) -> Some(typeName, num, xs)
     | _ -> None
 
 let Parse text index length =
