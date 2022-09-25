@@ -118,16 +118,72 @@ let (|Nanoseconds|_|) = function
     | _ -> None
 
 let (|Microseconds|_|) = function
-    | Fix_Point(num, Letter(u, Letter(s, xs))) when (u = 'u' || u = 'U') && (s = 's' || s = 'S') ->
-        Some($"{num}us", xs)
     | Unsigned_Int(us, Letter(u, Letter(s, Symbol(Underscore, _, Nanoseconds(ns, xs))))) when (u = 'u' || u = 'U') && (s = 's' || s = 'S') ->
         Some($"{us}us {ns}", xs)
+    | Unsigned_Int(us, Letter(u, Letter(s, Nanoseconds(ns, xs)))) when (u = 'u' || u = 'U') && (s = 's' || s = 'S') ->
+        Some($"{us}us {ns}", xs)
+    | Fix_Point(num, Letter(u, Letter(s, xs))) when (u = 'u' || u = 'U') && (s = 's' || s = 'S') ->
+        Some($"{num}us", xs)
+    | Nanoseconds(ns, xs) ->
+        Some(ns, xs)
     | _ -> None
 
-let (|Interval|_|) = function
-    | Microseconds(num, xs) -> Some(num, xs)
-    | Nanoseconds(num, xs) -> Some(num, xs)
+let (|Milliseconds|_|) = function
+    | Unsigned_Int(ms, Letter(m, Letter(s, Symbol(Underscore, _, Microseconds(us, xs))))) when (m = 'm' || m = 'M') && (s = 's' || s = 'S') ->
+        Some($"{ms}ms {us}", xs)
+    | Unsigned_Int(ms, Letter(m, Letter(s, Microseconds(us, xs)))) when (m = 'm' || m = 'M') && (s = 's' || s = 'S') ->
+        Some($"{ms}ms {us}", xs)
+    | Fix_Point(num, Letter(m, Letter(s, xs))) when (m = 'm' || m = 'M') && (s = 's' || s = 'S') ->
+        Some($"{num}ms", xs)
+    | Microseconds(us, xs) ->
+        Some(us, xs)
     | _ -> None
+
+let (|Seconds|_|) = function
+    | Unsigned_Int(sec, Letter(s, Symbol(Underscore, _, Milliseconds(ms, xs)))) when (s = 's' || s = 'S') ->
+        Some($"{sec}s {ms}", xs)
+    | Unsigned_Int(sec, Letter(s, Milliseconds(ms, xs))) when (s = 's' || s = 'S') ->
+        Some($"{sec}s {ms}", xs)
+    | Fix_Point(num, Letter(s, xs)) when (s = 's' || s = 'S') ->
+        Some($"{num}s", xs)
+    | Milliseconds(ms, xs) ->
+        Some(ms, xs)
+    | _ -> None
+
+let (|Minutes|_|) = function
+    | Unsigned_Int(min, Letter(m, Symbol(Underscore, _, Seconds(sec, xs)))) when (m = 'm' || m = 'M') ->
+        Some($"{min}m {sec}", xs)
+    | Unsigned_Int(min, Letter(m, Seconds(sec, xs))) when (m = 'm' || m = 'M') ->
+        Some($"{min}m {sec}", xs)
+    | Fix_Point(num, Letter(m, xs)) when (m = 'm' || m = 'M') ->
+        Some($"{num}m", xs)
+    | Seconds(sec, xs) ->
+        Some(sec, xs)
+    | _ -> None
+
+let (|Hours|_|) = function
+    | Unsigned_Int(hour, Letter(h, Symbol(Underscore, _, Minutes(min, xs)))) when (h = 'h' || h = 'H') ->
+        Some($"{hour}h {min}", xs)
+    | Unsigned_Int(hour, Letter(h, Minutes(min, xs))) when (h = 'h' || h = 'H') ->
+        Some($"{hour}h {min}", xs)
+    | Fix_Point(num, Letter(h, xs)) when (h = 'h' || h = 'H') ->
+        Some($"{num}h", xs)
+    | Minutes(min, xs) ->
+        Some(min, xs)
+    | _ -> None
+
+let (|Days|_|) = function
+    | Unsigned_Int(day, HexNumber(d, Symbol(Underscore, _, Hours(hour, xs)))) when (d = 'd' || d = 'D') ->
+        Some($"{day}d {hour}", xs)
+    | Unsigned_Int(day, HexNumber(d, Hours(hour, xs))) when (d = 'd' || d = 'D') ->
+        Some($"{day}d {hour}", xs)
+    | Fix_Point(num, HexNumber(d, xs)) when (d = 'd' || d = 'D') ->
+        Some($"{num}d", xs)
+    | Hours(hour, xs) ->
+        Some(hour, xs)
+    | _ -> None
+
+let (|Interval|_|) = (|Days|_|)
 
 let (|Duration|_|) = function
     | Identifier(typeName, Symbol(Sharp, _, Symbol((Plus | Minus), c, Interval(num, xs)))) -> Some(typeName, $"{c}{num}", xs)
