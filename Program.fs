@@ -201,9 +201,18 @@ let (|Time_Of_Day|_|) = function
     | Identifier(typeName, Symbol(Sharp, _, Daytime(num, xs))) -> Some(typeName, num, xs)
     | _ -> None
 
+let (|DateLiteral|_|) = function
+    | Unsigned_Int(year, Symbol(Minus, _, Unsigned_Int(month, Symbol(Minus, _, Unsigned_Int(day, xs))))) -> Some($"{year}-{month}-{day}", xs)
+    | _ -> None
+
+let (|Date|_|) = function
+    | Identifier(typeName, Symbol(Sharp, _, DateLiteral(num, xs))) -> Some(typeName, num, xs)
+    | _ -> None
+
 let (|Time_Literal|_|) = function
     | Duration(typeName, num, xs) -> Some(typeName, num, xs)
     | Time_Of_Day(typeName, num, xs) -> Some(typeName, num, xs)
+    | Date(typeName, num, xs) -> Some(typeName, num, xs)
     | _ -> None
 
 let Parse text index length =
