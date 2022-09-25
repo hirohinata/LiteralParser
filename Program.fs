@@ -12,6 +12,7 @@ and Symbol =
     | Dot
     | Plus
     | Minus
+    | Underscore
 
 let Lex (text: string) =
     let rec f (text: string) index length result =
@@ -55,6 +56,8 @@ let Lex (text: string) =
                 f text (index + 1) length (Symbol Plus :: result)
             | '-' ->
                 f text (index + 1) length (Symbol Minus :: result)
+            | '_' ->
+                f text (index + 1) length (Symbol Underscore :: result)
             | _ ->
                 result
                 
@@ -105,11 +108,44 @@ let (|Numeric_Literal|_|) = function
     | Int_Literal(typeName, baseNum, num, xs) -> Some(typeName, baseNum, num, xs)
     | _ -> None
 
+let (|Fix_Point|_|) = function
+    | Unsigned_Int(integral, Symbol Dot :: Unsigned_Int(fractional, xs)) -> Some(integral + "." + fractional, xs)
+    | Unsigned_Int(num, xs) -> Some(num, xs)
+    | _ -> None
+
+let (|Nanoseconds|_|) = function
+    | Fix_Point(num, Identifier unit :: xs) when unit = "ns" -> Some(num + "ns", xs)
+    | _ -> None
+
+let (|Microseconds|_|) = function
+    | Fix_Point(num, Identifier unit :: xs) when unit = "us" ->
+        Some(num + "us", xs)
+    | Unsigned_Int(us, Identifier unit :: Symbol Underscore :: Nanoseconds(ns, xs)) when unit = "us" ->
+        Some(us + "us" + ns + "ns", xs)
+    | _ -> None
+
+let (|Interval|_|) = function
+    | Microseconds(num, xs) -> Some(num, xs)
+    | Nanoseconds(num, xs) -> Some(num, xs)
+    | _ -> None
+
+let (|Duration|_|) = function
+    | Identifier typeName :: Symbol Sharp :: Interval(num, xs) -> Some(typeName, num, xs)
+    | Identifier typeName :: Symbol Sharp :: Symbol Plus :: Interval(num, xs) -> Some(typeName, num, xs)
+    | Identifier typeName :: Symbol Sharp :: Symbol Minus :: Interval(num, xs) -> Some(typeName, "-" + num, xs)
+    | _ -> None
+
+let (|Time_Literal|_|) = function
+    | Duration(typeName, num, xs) -> Some(typeName, num, xs)
+    | _ -> None
+
 let Parse = function
     | Numeric_Literal(typeName, baseNum, num, []) ->
         let typeName = typeName |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
         let baseNum = baseNum |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
         $"Numeric {typeName}{baseNum}{num}"
+    | Time_Literal(typeName, num, []) ->
+        $"Time {typeName}#{num}"
     | tokens -> $"Parse Error : {tokens}"
 
 [<EntryPoint>]
