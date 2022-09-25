@@ -75,20 +75,38 @@ let (|Base_Number_Specified_Int|_|) = function
     | Number baseNum :: Symbol Sharp :: Unsigned_Int(num, xs) -> Some(baseNum, num, xs)
     | Number baseNum :: Symbol Sharp :: HexNumber num :: xs -> Some(baseNum, num, xs)
     | _ -> None
+    
+let(|Int_Literal_Core|_|) = function
+    | Base_Number_Specified_Int(baseNum, num, xs) -> Some(Some baseNum, num, xs)
+    | Signed_Int(num, xs) -> Some(None, num, xs)
+    | _ -> None
 
 let(|Int_Literal|_|) = function
-    | Identifier typeName :: Symbol Sharp :: Base_Number_Specified_Int(baseNum, num, xs) -> Some(Some typeName, Some baseNum, num, xs)
-    | Identifier typeName :: Symbol Sharp :: Signed_Int(num, xs) -> Some(Some typeName, None, num, xs)
-    | Base_Number_Specified_Int(baseNum, num, xs) -> Some(None, Some baseNum, num, xs)
-    | Signed_Int(num, xs) -> Some(None, None, num, xs)
+    | Identifier typeName :: Symbol Sharp :: Int_Literal_Core(baseNum, num, xs) -> Some(Some typeName, baseNum, num, xs)
+    | Int_Literal_Core(baseNum, num, xs) -> Some(None, baseNum, num, xs)
+    | _ -> None
+    
+let (|Real_Literal_Core|_|) = function
+    | Signed_Int(integral, Symbol Dot :: Unsigned_Int(fractional, xs)) ->
+        Some(integral + "." + fractional, xs)
+    | Signed_Int(integral, Symbol Dot :: HexNumber fractionalWithExponent :: Signed_Int(num, xs)) ->
+        Some(integral + "." + fractionalWithExponent + num, xs)
+    | Signed_Int(integral, Symbol Dot :: HexNumber fractionalWithExponent :: xs) ->
+        Some(integral + "." + fractionalWithExponent, xs)
+    | _ -> None
+
+let (|Real_Literal|_|) = function
+    | Identifier typeName :: Symbol Sharp :: Real_Literal_Core(num, xs) -> Some(Some typeName, None, num, xs)
+    | Real_Literal_Core(num, xs) -> Some(None, None, num, xs)
     | _ -> None
 
 let (|Numeric_Literal|_|) = function
+    | Real_Literal(typeName, baseNum, num, xs) -> Some(typeName, baseNum, num, xs)
     | Int_Literal(typeName, baseNum, num, xs) -> Some(typeName, baseNum, num, xs)
     | _ -> None
 
 let Parse = function
-    | Int_Literal(typeName, baseNum, num, []) ->
+    | Numeric_Literal(typeName, baseNum, num, []) ->
         let typeName = typeName |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
         let baseNum = baseNum |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
         $"Numeric {typeName}{baseNum}{num}"
