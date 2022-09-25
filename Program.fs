@@ -220,6 +220,19 @@ let (|Time_Literal|_|) = function
     | Date(typeName, num, xs) -> Some(typeName, num, xs)
     | _ -> None
 
+let (|True_Literal|False_Literal|Unexpected|) (text: string, index, length) =
+    let text = text.Substring(index)
+    if text.Equals("TRUE", StringComparison.OrdinalIgnoreCase) then
+        True_Literal "TRUE"
+    elif text.Equals("FALSE", StringComparison.OrdinalIgnoreCase) then
+        False_Literal "FALSE"
+    else
+        Unexpected
+let (|Bool_Literal|_|) = function
+    | Identifier(typeName, Symbol(Sharp, _, (True_Literal s | False_Literal s))) -> Some(Some typeName, s)
+    | (True_Literal s | False_Literal s) -> Some(None, s)
+    | _ -> None
+
 let Parse text index length =
     match text, index, length with
     | Time_Literal(typeName, num, (remainText, index, length)) ->
@@ -234,6 +247,9 @@ let Parse text index length =
             $"Numeric {typeName}{baseNum}{num}"
         else
             $"Numeric Literal Parse Error ( {text} ) : {remainText.Substring(index)} is remained. (index = {index}, length = {length})"
+    | Bool_Literal(typeName, str) ->
+        let typeName = typeName |> Option.map (fun s -> s + "#") |> Option.defaultValue ""
+        $"Bool {typeName}{str}"
     | _ -> $"Parse Error ( {text} ) : not match."
 
 
