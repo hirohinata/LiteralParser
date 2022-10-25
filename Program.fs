@@ -270,10 +270,15 @@ let Parse text index length =
 
 
 [<EntryPoint>]
-let main argv =
+let main _ =
     while true do
         let s = stdin.ReadLine()
-        Parse s 0 s.Length
-        |> stdout.WriteLine
+        let sw = new System.Diagnostics.Stopwatch()
+        sw.Start()
+        for _ = 0 to 1000 do
+            Parse s 0 s.Length
+            |> ignore
+        stdout.Write sw.Elapsed.TotalMilliseconds
+        stdout.WriteLine "us"
 
     0 // return an integer exit code
